@@ -1,41 +1,46 @@
-pragma solidity ^0.4.10;
+pragma solidity 0.4.15;
 
 contract OffChainLending {
-    address lender;
-    uint balanceLimit;
-    mapping (address => uint) private balances;
+    address public owner;
+    mapping (address => uint) public balances;
 
-    event infoSent(address key, uint amount, uint balance);
- 
-    function OffChainLending(uint _balanceLimit) public {
-        lender = msg.sender;
-        balanceLimit = _balanceLimit;
+    event Lent(address indexed by, uint value, uint balance);
+    event Repaid(address indexed by, uint value, uint balance);
+
+    function OffChainLending() public {
+        owner = msg.sender;
     }
-    
-    modifier onlyByLender() {
-        require(msg.sender == lender);
+
+    modifier onlyByOwner() {
+        require(msg.sender == owner);
         _;
     }
-    
-    function setBalance(address key, uint amount) private {
-        if (amount == 0) revert();
-        if ((msg.sender == lender) && (balances[key] >= amount)) {
-            balances[key] -= amount;
-        } else if (balanceLimit - balances[key] >= amount) {
-            balances[key] += amount;
+
+    modifier onlyNotOwner() {
+        require(msg.sender != owner);
+        _;
+    }
+
+    function setBalance(address _key, uint _amount) private returns(bool) {
+        if (_amount == 0) return false;
+        if ((msg.sender == owner) && (balances[_key] >= _amount)) {
+            balances[_key] -= _amount;
+            Repaid(_key, _amount, balances[_key]);
+            return true;
         }
-        infoSent(msg.sender, amount, balances[key]);
+        if ((msg.sender != owner) && (balances[_key] + _amount >= balances[_key])) {
+            balances[_key] += _amount;
+            Lent(_key, _amount, balances[_key]);
+            return true;
+        }
+        return false;
     }
 
-    function getBalance(address key) public constant returns (uint) {
-        return balances[key];
+    function lend(uint _amount) public onlyNotOwner() {
+        setBalance(msg.sender, _amount);
     }
 
-    function borroverLand(uint amount) public {
-        setBalance(msg.sender, amount);
+    function loanRepayment(address _key, uint _amount) public onlyByOwner() {
+        setBalance(_key, _amount);
     }
-    
-    function loanRepayment(address key, uint amount) public onlyByLender() {
-         setBalance(key, amount);
-     }
 }
